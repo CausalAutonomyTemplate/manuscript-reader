@@ -307,7 +307,10 @@ class ManuscriptReader:
         curses.noecho()
         curses.cbreak()
         stdscr.keypad(True)
-        curses.use_default_colors()
+        try:
+            curses.use_default_colors()
+        except Exception:
+            pass
 
         # Initialize color pairs
         # 1: Header / Status bar (Inverted / Highlight)
