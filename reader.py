@@ -1,3 +1,4 @@
+import unicodedata
 #!/usr/bin/env python3
 """
 manuscript_reader: A lightweight, interactive terminal reader for Markdown manuscripts.
@@ -37,6 +38,94 @@ def save_state(state):
             json.dump(state, f, indent=2, ensure_ascii=False)
     except Exception:
         pass
+
+
+def visual_len(text: str) -> int:
+    """Return the display column width of a string (handling wide East Asian characters)."""
+    w = 0
+    for ch in text:
+        w += 2 if unicodedata.east_asian_width(ch) in ('W', 'F') else 1
+    return w
+
+
+def wrap_visual(text: str, width: int) -> list:
+    """Wrap text so that each line's visual column width does not exceed width.
+    Handles both Latin space-separated words and East Asian character-level wrapping.
+    """
+    if width <= 0:
+        width = 1
+    if not text:
+        return []
+    if visual_len(text) <= width:
+        return [text]
+
+    lines = []
+    # Tokenize: words, spaces, or individual CJK characters
+    tokens = []
+    current_token = []
+    current_is_cjk = None
+
+    for ch in text:
+        is_cjk = unicodedata.east_asian_width(ch) in ('W', 'F')
+        if is_cjk:
+            if current_token:
+                tokens.append(''.join(current_token))
+                current_token = []
+            tokens.append(ch)
+            current_is_cjk = None
+        elif ch.isspace():
+            if current_token:
+                tokens.append(''.join(current_token))
+                current_token = []
+            tokens.append(ch)
+            current_is_cjk = None
+        else:
+            if current_token and current_is_cjk:
+                tokens.append(''.join(current_token))
+                current_token = []
+            current_token.append(ch)
+            current_is_cjk = False
+    if current_token:
+        tokens.append(''.join(current_token))
+
+    cur_line = []
+    cur_width = 0
+
+    for tok in tokens:
+        tok_w = visual_len(tok)
+        # If token itself exceeds width, split character by character
+        if tok_w > width:
+            for sub_ch in tok:
+                sc_w = visual_len(sub_ch)
+                if cur_width + sc_w > width:
+                    if cur_line:
+                        lines.append(''.join(cur_line).rstrip())
+                        cur_line = []
+                        cur_width = 0
+                cur_line.append(sub_ch)
+                cur_width += sc_w
+            continue
+
+        if cur_width + tok_w <= width:
+            cur_line.append(tok)
+            cur_width += tok_w
+        else:
+            # Need to wrap
+            if cur_line:
+                lines.append(''.join(cur_line).rstrip())
+                cur_line = []
+                cur_width = 0
+            if tok.isspace():
+                # skip leading whitespace on wrapped line
+                continue
+            cur_line.append(tok)
+            cur_width = tok_w
+
+    if cur_line:
+        lines.append(''.join(cur_line).rstrip())
+
+    return [l for l in lines if l] or ['']
+
 
 class Document:
     def __init__(self, filepath):
@@ -121,7 +210,7 @@ class FormattedDocument:
                 style = "heading1" if level == 1 else ("heading2" if level == 2 else "heading3")
                 prefix = "# " if level == 1 else ("## " if level == 2 else "### ")
                 full_h = prefix + title
-                wrapped = textwrap.wrap(full_h, width=text_width) or [full_h]
+                wrapped = wrap_visual(full_h, width=text_width) or [full_h]
                 for hline in wrapped:
                     self.lines.append((hline, style, raw_idx))
                     self.fmt_to_raw.append(raw_idx)
@@ -137,14 +226,14 @@ class FormattedDocument:
             # Check for quote, list item, or ordinary text
             if stripped.startswith(">"):
                 quote_text = stripped[1:].strip()
-                wrapped = textwrap.wrap(quote_text, width=max(10, text_width - 4))
+                wrapped = wrap_visual(quote_text, width=max(10, text_width - 4))
                 for ql in (wrapped or [""]):
                     self.lines.append(("    | " + ql, "quote", raw_idx))
                     self.fmt_to_raw.append(raw_idx)
             elif stripped.startswith("- ") or stripped.startswith("* "):
                 bullet = stripped[:2]
                 rest = stripped[2:].strip()
-                wrapped = textwrap.wrap(rest, width=max(10, text_width - 4))
+                wrapped = wrap_visual(rest, width=max(10, text_width - 4))
                 if wrapped:
                     self.lines.append(("  " + bullet + wrapped[0], "bullet", raw_idx))
                     self.fmt_to_raw.append(raw_idx)
@@ -155,7 +244,7 @@ class FormattedDocument:
                     self.lines.append(("  " + bullet, "bullet", raw_idx))
                     self.fmt_to_raw.append(raw_idx)
             else:
-                wrapped = textwrap.wrap(line, width=text_width)
+                wrapped = wrap_visual(line, width=text_width)
                 for w in wrapped:
                     self.lines.append((w, "normal", raw_idx))
                     self.fmt_to_raw.append(raw_idx)

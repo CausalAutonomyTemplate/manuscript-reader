@@ -83,10 +83,34 @@ def test_search():
     assert len(matches) > 0, "Expected search matches for 'Heaven'"
     print(f"  OK: Found {len(matches)} search matches for '{term}'.")
 
+
+
+def test_chinese_manuscript():
+    print("Testing Chinese manuscript (绿洲.md)...")
+    doc_path = os.path.expanduser("~/Downloads/绿洲.md")
+    if not os.path.exists(doc_path):
+        print(f"  [SKIP] 绿洲.md not found at {doc_path}")
+        return
+    doc = reader.Document(doc_path)
+    assert doc.title == "绿洲：天人之间", f"Expected title '绿洲：天人之间', got '{doc.title}'"
+    assert len(doc.chapters) == 77, f"Expected 77 chapters, got {len(doc.chapters)}"
+
+    # Test reflow with width 80 and verify visual column widths
+    fdoc = reader.FormattedDocument(doc, width=80)
+    assert len(fdoc.lines) > 0
+    max_w = max(reader.visual_len(l[0]) for l in fdoc.lines)
+    assert max_w <= 80, f"Max visual width {max_w} exceeds 80"
+
+    # Test search for Chinese characters
+    matches = [i for i, (l, s, r) in enumerate(fdoc.lines) if "苻渊" in l]
+    assert len(matches) > 0, "Expected search matches for '苻渊'"
+    print(f"  OK: Chinese manuscript passed: {len(doc.chapters)} chapters, {len(matches)} matches for '苻渊', max display width {max_w} cols.")
+
 if __name__ == "__main__":
     test_document_loading()
     test_formatted_document()
     test_navigation_and_chapters()
     test_state_and_bookmarks()
     test_search()
+    test_chinese_manuscript()
     print("\nALL READER TESTS PASSED SUCCESSFULLY!")
