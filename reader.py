@@ -307,26 +307,26 @@ class ManuscriptReader:
         curses.noecho()
         curses.cbreak()
         stdscr.keypad(True)
+        has_colors = False
         try:
-            curses.use_default_colors()
+            if curses.has_colors():
+                curses.start_color()
+                bg_color = curses.COLOR_BLACK
+                try:
+                    curses.use_default_colors()
+                    bg_color = -1
+                except Exception:
+                    pass
+                curses.init_pair(1, curses.COLOR_BLACK, curses.COLOR_CYAN)
+                curses.init_pair(2, curses.COLOR_YELLOW, bg_color)
+                curses.init_pair(3, curses.COLOR_GREEN, bg_color)
+                curses.init_pair(4, curses.COLOR_MAGENTA, bg_color)
+                curses.init_pair(5, curses.COLOR_BLUE, bg_color)
+                curses.init_pair(6, curses.COLOR_BLACK, curses.COLOR_YELLOW)
+                curses.init_pair(7, curses.COLOR_WHITE, bg_color)
+                has_colors = True
         except Exception:
             pass
-
-        # Initialize color pairs
-        # 1: Header / Status bar (Inverted / Highlight)
-        curses.init_pair(1, curses.COLOR_BLACK, curses.COLOR_CYAN)
-        # 2: Heading 1
-        curses.init_pair(2, curses.COLOR_YELLOW, -1)
-        # 3: Heading 2
-        curses.init_pair(3, curses.COLOR_GREEN, -1)
-        # 4: Heading 3
-        curses.init_pair(4, curses.COLOR_MAGENTA, -1)
-        # 5: Quotes
-        curses.init_pair(5, curses.COLOR_BLUE, -1)
-        # 6: Highlight / Search match
-        curses.init_pair(6, curses.COLOR_BLACK, curses.COLOR_YELLOW)
-        # 7: Dim / subtle
-        curses.init_pair(7, curses.COLOR_WHITE, -1)
 
         max_y, max_x = stdscr.getmaxyx()
         fmt_doc = FormattedDocument(self.doc, max_x)
